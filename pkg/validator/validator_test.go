@@ -669,27 +669,3 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 }
-
-func TestDetectFormatParallel(t *testing.T) {
-	tests := []struct {
-		name   string
-		input  string
-		format Format
-	}{
-		{"json", `{"test": true}`, FormatJSON},
-		{"yaml", `key: value`, FormatYAML},
-		{"xml", `<root></root>`, FormatXML},
-		{"dockerfile", `FROM ubuntu:20.04`, FormatDockerfile},
-		{"csv", "name,age\nJohn,30", FormatCSV},
-		{"empty", "", FormatUnknown},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := DetectFormatParallel([]byte(tt.input))
-			if result != tt.format {
-				t.Errorf("DetectFormatParallel() = %v, want %v", result, tt.format)
-			}
-		})
-	}
-}

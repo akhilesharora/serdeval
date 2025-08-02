@@ -8,9 +8,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/BurntSushi/toml"
 	"github.com/graphql-go/graphql/language/parser"
@@ -964,70 +962,6 @@ func DetectFormat(data []byte) Format {
 	// Check config formats last as they're more general
 	if format := detectConfigFormats(trimmed, lines); format != FormatUnknown {
 		return format
-	}
-
-	return FormatUnknown
-}
-
-// DetectFormatParallel attempts to detect the data format using parallel detection.
-// Uses GOMAXPROCS goroutines to check different format families concurrently.
-// This is mainly useful for educational purposes as the overhead usually exceeds benefits.
-func DetectFormatParallel(data []byte) Format {
-	trimmed := strings.TrimSpace(string(data))
-	if len(trimmed) == 0 {
-		return FormatUnknown
-	}
-
-	lines := strings.Split(trimmed, "\n")
-
-	// Detection functions to run in parallel
-	type detectorFunc func(string, []string) Format
-	detectors := []detectorFunc{
-		detectJSONFamily,
-		detectDeveloperFormats,
-		detectDataFormats,
-		detectConfigFormats,
-	}
-
-	// Use a channel to collect results
-	resultChan := make(chan Format, len(detectors))
-	var wg sync.WaitGroup
-
-	// Limit concurrency to GOMAXPROCS
-	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
-
-	// Run detectors in parallel
-	for _, detector := range detectors {
-		wg.Add(1)
-		go func(fn detectorFunc) {
-			defer wg.Done()
-
-			// Acquire semaphore
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			if format := fn(trimmed, lines); format != FormatUnknown {
-				select {
-				case resultChan <- format:
-					// Successfully sent result
-				default:
-					// Channel already has a result, ignore
-				}
-			}
-		}(detector)
-	}
-
-	// Wait for all detectors to complete
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
-
-	// Return first detected format
-	for format := range resultChan {
-		if format != FormatUnknown {
-			return format
-		}
 	}
 
 	return FormatUnknown
