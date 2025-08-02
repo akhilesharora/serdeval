@@ -1,0 +1,19 @@
+# Auto-merge configuration for Dependabot PRs
+rules:
+  - minApprovals:
+      NONE: 0
+  - requiredLabels:
+      - dependencies
+  - requiredStatusChecks:
+      - test (1.20.x, ubuntu-latest)
+      - test (1.20.x, macos-latest)
+      - test (1.20.x, windows-latest)
+      - test (1.21.x, ubuntu-latest)
+      - test (1.21.x, macos-latest)
+      - test (1.21.x, windows-latest)
+      - lint
+      - security
+  - maxPendingReviews: 0
+
+mergeMethod: squash
+deleteBranchAfterMerge: true

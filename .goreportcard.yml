@@ -1,0 +1,10 @@
+# Go Report Card Configuration
+# Focus on core library code only
+paths:
+  - pkg/validator/
+
+# Exclude non-library code
+exclude_paths:
+  - cmd/
+  - example/
+  - "**/*_test.go"

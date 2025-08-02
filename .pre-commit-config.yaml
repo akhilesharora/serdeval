@@ -1,0 +1,40 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-json
+      - id: check-toml
+      - id: check-xml
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+      - id: go-vet
+      - id: go-imports
+      - id: go-cyclo
+        args: [-over=15]
+      - id: go-mod-tidy
+      - id: go-unit-tests
+      - id: golangci-lint
+
+  - repo: local
+    hooks:
+      - id: go-no-replacement
+        name: Check for go.mod replacements
+        entry: bash -c 'grep -n "^replace" go.mod && exit 1 || exit 0'
+        language: system
+        files: 'go.mod$'
+        
+      - id: privacy-check
+        name: Check for privacy violations
+        entry: bash -c 'grep -r "log\." --include="*.go" . | grep -v "_test.go" && echo "Found logging statements - remove for privacy" && exit 1 || exit 0'
+        language: system
+        files: '\.go$'

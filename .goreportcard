@@ -1,0 +1,5 @@
+# Go Report Card ignore file
+# Only scan actual project files
+/cmd/
+/pkg/
+/example/comprehensive_example.go

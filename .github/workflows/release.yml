@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 1.21.x
+    
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v5
+      with:
+        version: latest
+        args: release --clean
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Notify pkg.go.dev to index the new version
+  update-pkg-go-dev:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+    - name: Notify pkg.go.dev
+      run: |
+        curl https://proxy.golang.org/github.com/akhilesharora/serdeval/@v/list
+        curl https://sum.golang.org/lookup/github.com/akhilesharora/serdeval@${{ github.ref_name }}

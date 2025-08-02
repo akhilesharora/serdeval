@@ -1,0 +1,48 @@
+#!/bin/bash
+# Pre-push hook that runs tests and linting
+
+echo "Running pre-push checks..."
+
+# Run gofmt check
+echo "Checking code formatting..."
+if [ -n "$(gofmt -l .)" ]; then
+    echo "❌ Code is not formatted. Please run 'gofmt -w .' or 'make fmt'"
+    gofmt -l .
+    exit 1
+fi
+
+# Run tests
+echo "Running tests..."
+if ! go test -race ./...; then
+    echo "❌ Tests failed"
+    exit 1
+fi
+
+# Run go vet
+echo "Running go vet..."
+if ! go vet ./...; then
+    echo "❌ go vet failed"
+    exit 1
+fi
+
+# Run golangci-lint if available
+GOLANGCI_LINT=""
+if command -v golangci-lint > /dev/null; then
+    GOLANGCI_LINT="golangci-lint"
+elif [ -x "/home/akhilesh/go/bin/golangci-lint" ]; then
+    GOLANGCI_LINT="/home/akhilesh/go/bin/golangci-lint"
+elif [ -x "$(go env GOPATH)/bin/golangci-lint" ]; then
+    GOLANGCI_LINT="$(go env GOPATH)/bin/golangci-lint"
+fi
+
+if [ -n "$GOLANGCI_LINT" ]; then
+    echo "Running golangci-lint..."
+    if ! $GOLANGCI_LINT run; then
+        echo "❌ golangci-lint failed"
+        exit 1
+    fi
+else
+    echo "⚠️  golangci-lint not installed, skipping..."
+fi
+
+echo "✅ All pre-push checks passed!"

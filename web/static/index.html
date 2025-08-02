@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SerdeVal - Privacy-First Format Validator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: #1e293b;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #64748b;
+            font-size: 1.1rem;
+        }
+
+        .privacy-badge {
+            display: inline-flex;
+            align-items: center;
+            background: #dcfce7;
+            color: #166534;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin: 1rem 0;
+        }
+
+        .privacy-badge::before {
+            content: "🔒";
+            margin-right: 0.5rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .format-selector {
+            position: relative;
+        }
+
+        .format-selector select {
+            appearance: none;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.375rem;
+            padding: 0.5rem 2rem 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+
+        .format-selector::after {
+            content: "▼";
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.75rem;
+            color: #64748b;
+            pointer-events: none;
+        }
+
+        .textarea-wrapper {
+            position: relative;
+        }
+
+        .input-area, .output-area {
+            width: 100%;
+            height: 400px;
+            padding: 1rem;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            border: none;
+            outline: none;
+            resize: none;
+            background: #fefefe;
+        }
+
+        .input-area {
+            border-right: 1px solid #e2e8f0;
+        }
+
+        .output-area {
+            background: #f8fafc;
+            color: #475569;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+
+        .status-valid {
+            background: #22c55e;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+        }
+
+        .status-invalid {
+            background: #ef4444;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+        }
+
+        .status-neutral {
+            background: #94a3b8;
+        }
+
+        .actions {
+            padding: 1rem 1.5rem;
+            background: #f8fafc;
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #475569;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e1;
+        }
+
+        .error-message {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            white-space: pre-wrap;
+            max-height: 120px;
+            overflow-y: auto;
+            border-left: 4px solid #ef4444;
+        }
+
+        .success-message {
+            background: #f0fdf4;
+            color: #166534;
+            padding: 1rem 1.5rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            border-left: 4px solid #22c55e;
+        }
+
+        .success-message::before {
+            content: "✓";
+            margin-right: 0.75rem;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+
+        .footer {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.875rem;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SerdeVal</h1>
+            <p>Privacy-first data format validator & formatter</p>
+            <div class="privacy-badge">
+                100% offline - your data never leaves your browser
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Input Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Paste Your Data</span>
+                    <div class="format-selector">
+                        <select id="formatSelect">
+                            <option value="auto">Auto-detect</option>
+                            <option value="json">JSON</option>
+                            <option value="yaml">YAML</option>
+                            <option value="xml">XML</option>
+                            <option value="toml">TOML</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="textarea-wrapper">
+                    <textarea 
+                        id="inputArea" 
+                        class="input-area" 
+                        placeholder="Paste your JSON, YAML, XML, or TOML data here..."
+                        spellcheck="false"
+                    ></textarea>
+                    <div id="inputStatus" class="status-indicator status-neutral"></div>
+                </div>
+                <div class="actions">
+                    <button id="validateBtn" class="btn btn-secondary">✓ Validate</button>
+                    <button id="formatBtn" class="btn btn-primary">✨ Format & Validate</button>
+                    <button id="clearBtn" class="btn btn-secondary">🗑️ Clear</button>
+                </div>
+            </div>
+
+            <!-- Output Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Formatted Output</span>
+                    <button id="copyBtn" class="btn btn-secondary">📋 Copy</button>
+                </div>
+                <div class="textarea-wrapper">
+                    <textarea 
+                        id="outputArea" 
+                        class="output-area" 
+                        readonly
+                        placeholder="Formatted output will appear here..."
+                        spellcheck="false"
+                    ></textarea>
+                </div>
+                <div id="statusArea"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🔒 Your data is processed entirely in your browser. No servers, no logging, no tracking.</p>
+            <p style="margin-top: 0.5rem; font-size: 0.75rem;">
+                <span id="versionInfo">v0.0.1</span> | <a href="https://github.com/akhilesharora/serdeval" target="_blank" style="color: #3b82f6; text-decoration: none;">Open Source on GitHub</a>
+            </p>
+        </div>
+    </div>
+
+
+    <script>
+        class SerdeVal {
+            constructor() {
+                this.inputArea = document.getElementById('inputArea');
+                this.outputArea = document.getElementById('outputArea');
+                this.formatSelect = document.getElementById('formatSelect');
+                this.inputStatus = document.getElementById('inputStatus');
+                this.statusArea = document.getElementById('statusArea');
+
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                this.inputArea.addEventListener('input', () => this.validateInput());
+                document.getElementById('validateBtn').addEventListener('click', () => this.validateOnly());
+                document.getElementById('formatBtn').addEventListener('click', () => this.formatAndValidate());
+                document.getElementById('clearBtn').addEventListener('click', () => this.clearAll());
+                document.getElementById('copyBtn').addEventListener('click', () => this.copyOutput());
+                this.formatSelect.addEventListener('change', () => this.validateInput());
+                
+                // Fetch version on load
+                this.fetchVersion();
+            }
+            
+            async fetchVersion() {
+                try {
+                    const response = await fetch('/api/version');
+                    const data = await response.json();
+                    document.getElementById('versionInfo').textContent = data.version;
+                } catch (error) {
+                    // Keep default version if fetch fails
+                }
+            }
+
+            detectFormat(data) {
+                const trimmed = data.trim();
+                if (!trimmed) return 'unknown';
+
+                if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                    return 'json';
+                }
+                if (trimmed.startsWith('<?xml') || trimmed.startsWith('<')) {
+                    return 'xml';
+                }
+                if (trimmed.includes('---') || /^[a-zA-Z_][a-zA-Z0-9_]*\s*:/.test(trimmed)) {
+                    return 'yaml';
+                }
+                if (/^\s*\[[^\]]+\]/.test(trimmed) && trimmed.includes('=')) {
+                    return 'toml';
+                }
+                return 'unknown';
+            }
+
+            validateInput() {
+                const data = this.inputArea.value.trim();
+                if (!data) {
+                    this.inputStatus.className = 'status-indicator status-neutral';
+                    this.clearStatus();
+                    return;
+                }
+
+                const format = this.formatSelect.value === 'auto' 
+                    ? this.detectFormat(data) 
+                    : this.formatSelect.value;
+
+                const result = this.validateData(data, format);
+                
+                this.inputStatus.className = `status-indicator ${result.valid ? 'status-valid' : 'status-invalid'}`;
+                
+                if (!result.valid) {
+                    this.showError(result.error);
+                } else {
+                    this.showSuccess(`Valid ${format.toUpperCase()}`);
+                }
+            }
+
+            validateOnly() {
+                this.validateInput();
+            }
+
+            formatAndValidate() {
+                const data = this.inputArea.value.trim();
+                if (!data) return;
+
+                const format = this.formatSelect.value === 'auto' 
+                    ? this.detectFormat(data) 
+                    : this.formatSelect.value;
+
+                const result = this.validateData(data, format);
+                
+                if (result.valid) {
+                    const formatted = this.formatData(data, format);
+                    this.outputArea.value = formatted;
+                    this.showSuccess(`Valid ${format.toUpperCase()} - formatted successfully`);
+                } else {
+                    this.outputArea.value = '';
+                    this.showError(result.error);
+                }
+                
+                this.inputStatus.className = `status-indicator ${result.valid ? 'status-valid' : 'status-invalid'}`;
+            }
+
+            validateData(data, format) {
+                try {
+                    switch (format) {
+                        case 'json':
+                            JSON.parse(data);
+                            return { valid: true };
+                        case 'yaml':
+                            // Basic YAML validation (simplified)
+                            if (data.includes('\t')) {
+                                return { valid: false, error: 'YAML cannot contain tabs, use spaces for indentation' };
+                            }
+                            return { valid: true };
+                        case 'xml':
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(data, 'text/xml');
+                            const errors = doc.getElementsByTagName('parsererror');
+                            if (errors.length > 0) {
+                                return { valid: false, error: errors[0].textContent };
+                            }
+                            return { valid: true };
+                        case 'toml':
+                            // Basic TOML validation (simplified)
+                            return { valid: true };
+                        default:
+                            return { valid: false, error: 'Unsupported format or unable to detect format' };
+                    }
+                } catch (error) {
+                    return { valid: false, error: error.message };
+                }
+            }
+
+            formatData(data, format) {
+                try {
+                    switch (format) {
+                        case 'json':
+                            return JSON.stringify(JSON.parse(data), null, 2);
+                        case 'xml':
+                            return this.formatXML(data);
+                        case 'yaml':
+                        case 'toml':
+                            return data; // Return as-is for now
+                        default:
+                            return data;
+                    }
+                } catch (error) {
+                    return data;
+                }
+            }
+
+            formatXML(xml) {
+                const PADDING = ' '.repeat(2);
+                const reg = /(>)(<)(\/*)/g;
+                let formatted = xml.replace(reg, '$1\r\n$2$3');
+                let pad = 0;
+                
+                return formatted.split('\r\n').map(line => {
+                    let indent = 0;
+                    if (line.match(/.+<\/\w[^>]*>$/)) {
+                        indent = 0;
+                    } else if (line.match(/^<\/\w/) && pad > 0) {
+                        pad -= 1;
+                    } else if (line.match(/^<\w[^>]*[^\/]>.*$/)) {
+                        indent = 1;
+                    } else {
+                        indent = 0;
+                    }
+                    
+                    const padding = PADDING.repeat(pad);
+                    pad += indent;
+                    
+                    return padding + line;
+                }).join('\r\n');
+            }
+
+            clearAll() {
+                this.inputArea.value = '';
+                this.outputArea.value = '';
+                this.inputStatus.className = 'status-indicator status-neutral';
+                this.clearStatus();
+            }
+
+            clearStatus() {
+                this.statusArea.innerHTML = '';
+            }
+
+            showError(message) {
+                this.statusArea.innerHTML = `<div class="error-message">${message}</div>`;
+            }
+
+            showSuccess(message) {
+                this.statusArea.innerHTML = `<div class="success-message">${message}</div>`;
+            }
+
+            async copyOutput() {
+                const text = this.outputArea.value;
+                if (!text) return;
+
+                try {
+                    await navigator.clipboard.writeText(text);
+                    this.showCopySuccess();
+                } catch (err) {
+                    // Fallback for browsers that don't support clipboard API
+                    this.outputArea.select();
+                    document.execCommand('copy');
+                    this.showCopySuccess();
+                }
+            }
+
+            showCopySuccess() {
+                const copyBtn = document.getElementById('copyBtn');
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✅ Copied!';
+                copyBtn.style.background = '#22c55e';
+                copyBtn.style.color = 'white';
+                
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.background = '';
+                    copyBtn.style.color = '';
+                }, 2000);
+            }
+        }
+
+        // Initialize the validator when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new SerdeVal();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+version: "2"
+run:
+  tests: true
+linters:
+  default: none
+  enable:
+    - asciicheck
+    - copyloopvar
+    - dogsled
+    - dupl
+    - errcheck
+    - exhaustive
+    - gocognit
+    - goconst
+    - gocyclo
+    - gosec
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nlreturn
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+    - whitespace
+  settings:
+    dupl:
+      threshold: 100
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    gocyclo:
+      min-complexity: 15
+    govet:
+      enable:
+        - shadow
+    lll:
+      line-length: 120
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - dupl
+          - gocyclo
+          - gosec
+        path: _test\.go
+      - linters:
+          - gocyclo
+          - gosec
+        path: cmd/serdeval/main\.go
+      - linters:
+          - gosec
+        path: example/
+      - linters:
+          - gosec
+        text: G114|G304
+    paths:
+      - vendor
+      - testdata
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/akhilesharora/serdeval
+  exclusions:
+    generated: lax
+    paths:
+      - vendor
+      - testdata
+      - third_party$
+      - builtin$
+      - examples$

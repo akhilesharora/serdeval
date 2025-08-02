@@ -1,0 +1,19 @@
+#!/bin/bash
+# Pre-commit hook that runs basic checks
+
+echo "Running pre-commit checks..."
+
+# Check for formatting issues
+if [ -n "$(gofmt -l .)" ]; then
+    echo "❌ Code is not formatted. Running gofmt..."
+    gofmt -w .
+    echo "✅ Code formatted. Please stage the changes and commit again."
+    exit 1
+fi
+
+# Check for TODO comments
+if grep -r "TODO" --include="*.go" . | grep -v vendor; then
+    echo "⚠️  Warning: Found TODO comments in code"
+fi
+
+echo "✅ Pre-commit checks passed!"

@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        go-version: [1.22.x, 1.23.x]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+    
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    
+    - name: Download dependencies
+      run: go mod download
+    
+    - name: Run tests with race detector
+      run: go test -race -v ./...
+    
+    - name: Run tests with coverage
+      shell: bash
+      run: go test -coverprofile=coverage.out -covermode=atomic ./pkg/...
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: akhilesharora/serdeval
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        verbose: true
+    
+    - name: Run vet
+      run: go vet ./...
+    
+    - name: Build
+      run: go build -v ./cmd/serdeval
+    
+    - name: Test binary (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        ./serdeval validate --help
+        echo '{"test": true}' | ./serdeval validate
+    
+    - name: Test binary (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        ./serdeval.exe validate --help
+        echo '{"test": true}' | ./serdeval.exe validate
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v8
+      with:
+        version: v2.3.0
+        args: --timeout=5m
+
+
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 1.23.x
+    
+    - name: Run benchmarks
+      run: go test -bench=. -benchmem ./... | tee benchmark.txt
+    
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: benchmark.txt
