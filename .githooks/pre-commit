@@ -11,6 +11,27 @@ if [ -n "$(gofmt -l .)" ]; then
     exit 1
 fi
 
+# Run golangci-lint if available
+GOLANGCI_LINT=""
+if command -v golangci-lint > /dev/null; then
+    GOLANGCI_LINT="golangci-lint"
+elif [ -x "/home/akhilesh/go/bin/golangci-lint" ]; then
+    GOLANGCI_LINT="/home/akhilesh/go/bin/golangci-lint"
+elif [ -x "$(go env GOPATH)/bin/golangci-lint" ]; then
+    GOLANGCI_LINT="$(go env GOPATH)/bin/golangci-lint"
+fi
+
+if [ -n "$GOLANGCI_LINT" ]; then
+    echo "Running golangci-lint..."
+    if ! $GOLANGCI_LINT run; then
+        echo "❌ golangci-lint failed"
+        echo "Fix the issues and try again, or run 'git commit --no-verify' to skip"
+        exit 1
+    fi
+else
+    echo "⚠️  golangci-lint not installed, skipping..."
+fi
+
 # Check for TODO comments
 if grep -r "TODO" --include="*.go" . | grep -v vendor; then
     echo "⚠️  Warning: Found TODO comments in code"

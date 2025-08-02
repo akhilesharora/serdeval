@@ -38,7 +38,7 @@ jobs:
     
     - name: Run tests with coverage
       shell: bash
-      run: go test -coverprofile=coverage.out -covermode=atomic ./pkg/...
+      run: go test -coverprofile=coverage.out -covermode=atomic ./...
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
