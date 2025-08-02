@@ -108,8 +108,10 @@ cp deploy.example.sh deploy.sh
 
 ### Command Line Interface
 
+#### Basic Usage
+
 ```bash
-# Validate a single file
+# Validate a single file (auto-detects format)
 serdeval validate config.json
 
 # Validate multiple files
@@ -126,16 +128,72 @@ serdeval validate --json config.json
 
 # Start web interface
 serdeval web --port 8080
+```
 
-# Check version
-serdeval version
+#### Validate Each Format
 
-# Windows examples
-serdeval.exe validate config.json
-type config.json | serdeval.exe validate
+```bash
+# JSON files
+serdeval validate package.json
+serdeval validate data.json
+
+# YAML files
+serdeval validate docker-compose.yaml
+serdeval validate config.yml
+
+# XML files
+serdeval validate pom.xml
+serdeval validate web.xml
+
+# TOML files
+serdeval validate Cargo.toml
+serdeval validate pyproject.toml
+
+# CSV files
+serdeval validate data.csv
+serdeval validate report.csv
+
+# GraphQL files
+serdeval validate schema.graphql
+serdeval validate query.gql
+
+# INI/Config files
+serdeval validate config.ini
+serdeval validate settings.cfg
+serdeval validate app.conf
+
+# HCL/Terraform files
+serdeval validate main.tf
+serdeval validate variables.tfvars
+serdeval validate config.hcl
+
+# Protobuf text format
+serdeval validate message.textproto
+serdeval validate data.pbtxt
+
+# Markdown files
+serdeval validate README.md
+serdeval validate docs.markdown
+
+# JSON Lines files
+serdeval validate logs.jsonl
+serdeval validate events.ndjson
+
+# Jupyter notebooks
+serdeval validate analysis.ipynb
+
+# Python requirements
+serdeval validate requirements.txt
+serdeval validate requirements-dev.txt
+
+# Dockerfiles
+serdeval validate Dockerfile
+serdeval validate Dockerfile.prod
 ```
 
 ### Go Library
+
+#### Basic Usage
 
 ```go
 package main
@@ -157,12 +215,133 @@ func main() {
     } else {
         log.Fatalf("Invalid data: %s", result.Error)
     }
-    
-    // Validate specific format
-    v, _ := validator.NewValidator(validator.FormatJSON)
-    result = v.ValidateString(`{"test": true}`)
-    fmt.Printf("Valid: %v\n", result.Valid)
 }
+```
+
+#### Examples for Each Format
+
+```go
+// JSON Validation
+jsonValidator, _ := validator.NewValidator(validator.FormatJSON)
+result := jsonValidator.ValidateString(`{"name": "test", "value": 123}`)
+fmt.Printf("JSON valid: %v\n", result.Valid)
+
+// YAML Validation
+yamlValidator, _ := validator.NewValidator(validator.FormatYAML)
+result = yamlValidator.ValidateString(`
+name: test
+value: 123
+items:
+  - one
+  - two
+`)
+fmt.Printf("YAML valid: %v\n", result.Valid)
+
+// XML Validation
+xmlValidator, _ := validator.NewValidator(validator.FormatXML)
+result = xmlValidator.ValidateString(`<?xml version="1.0"?>
+<root>
+  <name>test</name>
+  <value>123</value>
+</root>`)
+fmt.Printf("XML valid: %v\n", result.Valid)
+
+// TOML Validation
+tomlValidator, _ := validator.NewValidator(validator.FormatTOML)
+result = tomlValidator.ValidateString(`
+[server]
+host = "localhost"
+port = 8080
+`)
+fmt.Printf("TOML valid: %v\n", result.Valid)
+
+// CSV Validation
+csvValidator, _ := validator.NewValidator(validator.FormatCSV)
+result = csvValidator.ValidateString(`name,age,city
+John,30,NYC
+Jane,25,LA`)
+fmt.Printf("CSV valid: %v\n", result.Valid)
+
+// GraphQL Validation
+graphqlValidator, _ := validator.NewValidator(validator.FormatGraphQL)
+result = graphqlValidator.ValidateString(`
+query GetUser {
+  user(id: "123") {
+    name
+    email
+  }
+}`)
+fmt.Printf("GraphQL valid: %v\n", result.Valid)
+
+// INI Validation
+iniValidator, _ := validator.NewValidator(validator.FormatINI)
+result = iniValidator.ValidateString(`
+[database]
+host = localhost
+port = 5432
+`)
+fmt.Printf("INI valid: %v\n", result.Valid)
+
+// HCL Validation
+hclValidator, _ := validator.NewValidator(validator.FormatHCL)
+result = hclValidator.ValidateString(`
+resource "aws_instance" "example" {
+  ami           = "ami-12345"
+  instance_type = "t2.micro"
+}`)
+fmt.Printf("HCL valid: %v\n", result.Valid)
+
+// Protobuf Text Validation
+protoValidator, _ := validator.NewValidator(validator.FormatProtobuf)
+result = protoValidator.ValidateString(`
+type_url: "type.googleapis.com/example"
+value: "\n\x05hello"
+`)
+fmt.Printf("Protobuf valid: %v\n", result.Valid)
+
+// Markdown Validation
+mdValidator, _ := validator.NewValidator(validator.FormatMarkdown)
+result = mdValidator.ValidateString(`# Title
+
+This is **bold** text.
+
+- Item 1
+- Item 2
+`)
+fmt.Printf("Markdown valid: %v\n", result.Valid)
+
+// JSON Lines Validation
+jsonlValidator, _ := validator.NewValidator(validator.FormatJSONL)
+result = jsonlValidator.ValidateString(`{"event": "login", "user": "john"}
+{"event": "logout", "user": "john"}
+{"event": "login", "user": "jane"}`)
+fmt.Printf("JSONL valid: %v\n", result.Valid)
+
+// Jupyter Notebook Validation
+jupyterValidator, _ := validator.NewValidator(validator.FormatJupyter)
+result = jupyterValidator.ValidateString(`{
+  "cells": [],
+  "metadata": {"kernelspec": {"name": "python3"}},
+  "nbformat": 4,
+  "nbformat_minor": 2
+}`)
+fmt.Printf("Jupyter valid: %v\n", result.Valid)
+
+// Requirements.txt Validation
+reqValidator, _ := validator.NewValidator(validator.FormatRequirements)
+result = reqValidator.ValidateString(`numpy==1.21.0
+pandas>=1.3.0
+scikit-learn~=1.0.0`)
+fmt.Printf("Requirements valid: %v\n", result.Valid)
+
+// Dockerfile Validation
+dockerValidator, _ := validator.NewValidator(validator.FormatDockerfile)
+result = dockerValidator.ValidateString(`FROM python:3.9
+WORKDIR /app
+COPY . .
+RUN pip install -r requirements.txt
+CMD ["python", "app.py"]`)
+fmt.Printf("Dockerfile valid: %v\n", result.Valid)
 ```
 
 ### Web Interface
