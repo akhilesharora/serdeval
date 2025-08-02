@@ -20,10 +20,10 @@ for all supported formats.
 
 Create a validator for a specific format:
 
-	import "github.com/akhilesharora/datavalidator/pkg/validator"
+	import "github.com/akhilesharora/serdeval"
 
 	// Create a JSON validator
-	v, err := validator.NewValidator(validator.FormatJSON)
+	v, err := serdeval.NewValidator(serdeval.FormatJSON)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -41,14 +41,14 @@ Create a validator for a specific format:
 Use ValidateAuto for automatic format detection:
 
 	data := []byte(`{"key": "value"}`)
-	result := validator.ValidateAuto(data)
+	result := serdeval.ValidateAuto(data)
 	fmt.Printf("Detected format: %s\n", result.Format)
 	fmt.Printf("Valid: %v\n", result.Valid)
 
 Detect format from filename:
 
-	format := validator.DetectFormatFromFilename("config.yaml")
-	// format == validator.FormatYAML
+	format := serdeval.DetectFormatFromFilename("config.yaml")
+	// format == serdeval.FormatYAML
 
 # Supported Formats
 
@@ -83,14 +83,14 @@ Validate multiple files with different formats:
 		}
 
 		// Detect format from filename
-		format := validator.DetectFormatFromFilename(file)
-		if format == validator.FormatUnknown {
+		format := serdeval.DetectFormatFromFilename(file)
+		if format == serdeval.FormatUnknown {
 			// Fall back to content detection
-			format = validator.DetectFormat(data)
+			format = serdeval.DetectFormat(data)
 		}
 
 		// Create appropriate validator
-		v, err := validator.NewValidator(format)
+		v, err := serdeval.NewValidator(format)
 		if err != nil {
 			log.Printf("Unsupported format for %s", file)
 			continue
@@ -130,7 +130,7 @@ This package is designed with privacy and security in mind:
 
 All validator implementations are thread-safe and can be reused across multiple goroutines:
 
-	validator, _ := validator.NewValidator(validator.FormatJSON)
+	validator, _ := serdeval.NewValidator(serdeval.FormatJSON)
 
 	// Safe to use concurrently
 	var wg sync.WaitGroup
@@ -138,7 +138,7 @@ All validator implementations are thread-safe and can be reused across multiple 
 		wg.Add(1)
 		go func(data string) {
 			defer wg.Done()
-			result := validator.ValidateString(data)
+			result := serdeval.ValidateString(data)
 			// Process result
 		}(jsonData[i])
 	}
@@ -148,11 +148,11 @@ All validator implementations are thread-safe and can be reused across multiple 
 
 Validation errors include detailed information about what went wrong:
 
-	result := validator.ValidateString(invalidJSON)
+	result := serdeval.ValidateString(invalidJSON)
 	if !result.Valid {
 		// result.Error contains specific error message
 		// e.g., "unexpected end of JSON input"
 		fmt.Printf("Validation failed: %s\n", result.Error)
 	}
 */
-package validator
+package serdeval

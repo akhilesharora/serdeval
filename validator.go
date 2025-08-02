@@ -1,6 +1,6 @@
-// Package validator provides data format validation for JSON, YAML, XML, TOML, CSV, GraphQL, INI, HCL,
+// Package serdeval provides data format validation for JSON, YAML, XML, TOML, CSV, GraphQL, INI, HCL,
 // Protobuf text format, Markdown, JSON Lines, Jupyter Notebooks, Requirements.txt, and Dockerfile
-package validator
+package serdeval
 
 import (
 	"encoding/csv"

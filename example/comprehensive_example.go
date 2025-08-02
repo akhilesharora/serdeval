@@ -5,13 +5,13 @@ import (
 	"log"
 	"os"
 
-	"github.com/akhilesharora/serdeval/pkg/validator"
+	"github.com/akhilesharora/serdeval"
 )
 
 func main() {
 	// Example 1: Basic JSON validation
 	fmt.Println("=== Example 1: Basic JSON Validation ===")
-	jsonValidator, _ := validator.NewValidator(validator.FormatJSON)
+	jsonValidator, _ := serdeval.NewValidator(serdeval.FormatJSON)
 	result := jsonValidator.ValidateString(`{"name": "John", "age": 30}`)
 	fmt.Printf("Valid: %v\n", result.Valid)
 	if !result.Valid {
@@ -33,7 +33,7 @@ hobbies:
   - reading
   - coding
 `)
-	result = validator.ValidateAuto(yamlData)
+	result = serdeval.ValidateAuto(yamlData)
 	fmt.Printf("Detected format: %s\n", result.Format)
 	fmt.Printf("Valid: %v\n", result.Valid)
 
@@ -46,14 +46,14 @@ hobbies:
 			log.Printf("Error reading file: %v", err)
 		} else {
 			// Detect format from filename
-			format := validator.DetectFormatFromFilename(filename)
-			if format == validator.FormatUnknown {
+			format := serdeval.DetectFormatFromFilename(filename)
+			if format == serdeval.FormatUnknown {
 				// Try content-based detection
-				format = validator.DetectFormat(data)
+				format = serdeval.DetectFormat(data)
 			}
 
-			if format != validator.FormatUnknown {
-				v, _ := validator.NewValidator(format)
+			if format != serdeval.FormatUnknown {
+				v, _ := serdeval.NewValidator(format)
 				result := v.Validate(data)
 				fmt.Printf("File: %s\n", filename)
 				fmt.Printf("Format: %s\n", format)
@@ -77,14 +77,14 @@ hobbies:
 	}
 
 	for name, data := range testData {
-		result := validator.ValidateAuto([]byte(data))
+		result := serdeval.ValidateAuto([]byte(data))
 		fmt.Printf("%s: Format=%s, Valid=%v\n", name, result.Format, result.Valid)
 	}
 
 	// Example 6: Custom error handling
 	fmt.Println("\n=== Example 6: Custom Error Handling ===")
-	validateWithRetry := func(data string, format validator.Format) {
-		v, err := validator.NewValidator(format)
+	validateWithRetry := func(data string, format serdeval.Format) {
+		v, err := serdeval.NewValidator(format)
 		if err != nil {
 			fmt.Printf("Failed to create validator: %v\n", err)
 
@@ -100,6 +100,6 @@ hobbies:
 		}
 	}
 
-	validateWithRetry(`{"test": true}`, validator.FormatJSON)
-	validateWithRetry(`<invalid`, validator.FormatXML)
+	validateWithRetry(`{"test": true}`, serdeval.FormatJSON)
+	validateWithRetry(`<invalid`, serdeval.FormatXML)
 }

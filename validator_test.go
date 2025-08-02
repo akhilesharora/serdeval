@@ -1,4 +1,4 @@
-package validator
+package serdeval
 
 import (
 	"testing"

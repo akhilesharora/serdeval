@@ -14,7 +14,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/akhilesharora/serdeval/pkg/validator"
+	"github.com/akhilesharora/serdeval"
 )
 
 var (
@@ -197,31 +197,31 @@ func validateStdin(format string) ValidationResult {
 }
 
 func validateData(data []byte, filename, format string) ValidationResult {
-	var result validator.Result
+	var result serdeval.Result
 
 	const autoFormat = "auto"
 
 	if format == autoFormat {
 		// Try filename first, then content
-		detectedFormat := validator.DetectFormatFromFilename(filename)
-		if detectedFormat != validator.FormatUnknown {
-			v, _ := validator.NewValidator(detectedFormat)
+		detectedFormat := serdeval.DetectFormatFromFilename(filename)
+		if detectedFormat != serdeval.FormatUnknown {
+			v, _ := serdeval.NewValidator(detectedFormat)
 			result = v.Validate(data)
 		} else {
-			result = validator.ValidateAuto(data)
+			result = serdeval.ValidateAuto(data)
 		}
 	} else {
 		// Try to create validator for the specified format
-		var formatType validator.Format
+		var formatType serdeval.Format
 		switch format {
 		case "json":
-			formatType = validator.FormatJSON
+			formatType = serdeval.FormatJSON
 		case "yaml":
-			formatType = validator.FormatYAML
+			formatType = serdeval.FormatYAML
 		case "xml":
-			formatType = validator.FormatXML
+			formatType = serdeval.FormatXML
 		case "toml":
-			formatType = validator.FormatTOML
+			formatType = serdeval.FormatTOML
 		default:
 			return ValidationResult{
 				Valid:    false,
@@ -231,7 +231,7 @@ func validateData(data []byte, filename, format string) ValidationResult {
 			}
 		}
 
-		v, err := validator.NewValidator(formatType)
+		v, err := serdeval.NewValidator(formatType)
 		if err != nil {
 			return ValidationResult{
 				Valid:    false,
