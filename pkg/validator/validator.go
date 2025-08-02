@@ -162,6 +162,24 @@ type DockerfileValidator struct {
 	baseValidator
 }
 
+// validatorMap maps formats to their validator constructors
+var validatorMap = map[Format]func() Validator{
+	FormatJSON:         func() Validator { return &JSONValidator{baseValidator{format: FormatJSON}} },
+	FormatYAML:         func() Validator { return &YAMLValidator{baseValidator{format: FormatYAML}} },
+	FormatXML:          func() Validator { return &XMLValidator{baseValidator{format: FormatXML}} },
+	FormatTOML:         func() Validator { return &TOMLValidator{baseValidator{format: FormatTOML}} },
+	FormatCSV:          func() Validator { return &CSVValidator{baseValidator{format: FormatCSV}} },
+	FormatGraphQL:      func() Validator { return &GraphQLValidator{baseValidator{format: FormatGraphQL}} },
+	FormatINI:          func() Validator { return &INIValidator{baseValidator{format: FormatINI}} },
+	FormatHCL:          func() Validator { return &HCLValidator{baseValidator{format: FormatHCL}} },
+	FormatProtobuf:     func() Validator { return &ProtobufValidator{baseValidator{format: FormatProtobuf}} },
+	FormatMarkdown:     func() Validator { return &MarkdownValidator{baseValidator{format: FormatMarkdown}} },
+	FormatJSONL:        func() Validator { return &JSONLValidator{baseValidator{format: FormatJSONL}} },
+	FormatJupyter:      func() Validator { return &JupyterValidator{baseValidator{format: FormatJupyter}} },
+	FormatRequirements: func() Validator { return &RequirementsValidator{baseValidator{format: FormatRequirements}} },
+	FormatDockerfile:   func() Validator { return &DockerfileValidator{baseValidator{format: FormatDockerfile}} },
+}
+
 // NewValidator creates a new validator for the specified format.
 //
 // Example:
@@ -180,40 +198,12 @@ type DockerfileValidator struct {
 // FormatRequirements, FormatDockerfile
 // Returns an error if an unsupported format is specified.
 func NewValidator(format Format) (Validator, error) {
-	switch format {
-	case FormatJSON:
-		return &JSONValidator{baseValidator{format: FormatJSON}}, nil
-	case FormatYAML:
-		return &YAMLValidator{baseValidator{format: FormatYAML}}, nil
-	case FormatXML:
-		return &XMLValidator{baseValidator{format: FormatXML}}, nil
-	case FormatTOML:
-		return &TOMLValidator{baseValidator{format: FormatTOML}}, nil
-	case FormatCSV:
-		return &CSVValidator{baseValidator{format: FormatCSV}}, nil
-	case FormatGraphQL:
-		return &GraphQLValidator{baseValidator{format: FormatGraphQL}}, nil
-	case FormatINI:
-		return &INIValidator{baseValidator{format: FormatINI}}, nil
-	case FormatHCL:
-		return &HCLValidator{baseValidator{format: FormatHCL}}, nil
-	case FormatProtobuf:
-		return &ProtobufValidator{baseValidator{format: FormatProtobuf}}, nil
-	case FormatMarkdown:
-		return &MarkdownValidator{baseValidator{format: FormatMarkdown}}, nil
-	case FormatJSONL:
-		return &JSONLValidator{baseValidator{format: FormatJSONL}}, nil
-	case FormatJupyter:
-		return &JupyterValidator{baseValidator{format: FormatJupyter}}, nil
-	case FormatRequirements:
-		return &RequirementsValidator{baseValidator{format: FormatRequirements}}, nil
-	case FormatDockerfile:
-		return &DockerfileValidator{baseValidator{format: FormatDockerfile}}, nil
-	case FormatAuto, FormatUnknown:
-		return nil, fmt.Errorf("unsupported format: %s", format)
-	default:
+	constructor, ok := validatorMap[format]
+	if !ok {
 		return nil, fmt.Errorf("unsupported format: %s", format)
 	}
+
+	return constructor(), nil
 }
 
 // Format returns the validator's format
@@ -668,6 +658,41 @@ func DetectFormat(data []byte) Format {
 	return FormatUnknown
 }
 
+// extensionMap maps file extensions to formats
+var extensionMap = map[string]Format{
+	"json":          FormatJSON,
+	"yaml":          FormatYAML,
+	"yml":           FormatYAML,
+	"xml":           FormatXML,
+	"toml":          FormatTOML,
+	"csv":           FormatCSV,
+	"graphql":       FormatGraphQL,
+	"gql":           FormatGraphQL,
+	"ini":           FormatINI,
+	"cfg":           FormatINI,
+	"conf":          FormatINI,
+	"hcl":           FormatHCL,
+	"tf":            FormatHCL,
+	"tfvars":        FormatHCL,
+	"pb":            FormatProtobuf,
+	"proto":         FormatProtobuf,
+	"textproto":     FormatProtobuf,
+	"pbtxt":         FormatProtobuf,
+	"md":            FormatMarkdown,
+	"markdown":      FormatMarkdown,
+	"mkd":           FormatMarkdown,
+	"mdwn":          FormatMarkdown,
+	"mdown":         FormatMarkdown,
+	"mdtxt":         FormatMarkdown,
+	"mdtext":        FormatMarkdown,
+	"jsonl":         FormatJSONL,
+	"ndjson":        FormatJSONL,
+	"jsonlines":     FormatJSONL,
+	"ipynb":         FormatJupyter,
+	"dockerfile":    FormatDockerfile,
+	"containerfile": FormatDockerfile,
+}
+
 // DetectFormatFromFilename attempts to detect format from filename extension.
 //
 // Supported extensions:
@@ -696,43 +721,16 @@ func DetectFormatFromFilename(filename string) Format {
 	}
 	ext := strings.ToLower(strings.TrimPrefix(filename[lastDot:], "."))
 
-	switch ext {
-	case "json":
-		return FormatJSON
-	case "yaml", "yml":
-		return FormatYAML
-	case "xml":
-		return FormatXML
-	case "toml":
-		return FormatTOML
-	case "csv":
-		return FormatCSV
-	case "graphql", "gql":
-		return FormatGraphQL
-	case "ini", "cfg", "conf":
-		return FormatINI
-	case "hcl", "tf", "tfvars":
-		return FormatHCL
-	case "pb", "proto", "textproto", "pbtxt":
-		return FormatProtobuf
-	case "md", "markdown", "mkd", "mdwn", "mdown", "mdtxt", "mdtext":
-		return FormatMarkdown
-	case "jsonl", "ndjson", "jsonlines":
-		return FormatJSONL
-	case "ipynb":
-		return FormatJupyter
-	case "txt":
-		// Check if it might be requirements.txt
-		if strings.Contains(strings.ToLower(filename), "requirements") {
-			return FormatRequirements
-		}
-
-		return FormatUnknown
-	case "dockerfile", "containerfile":
-		return FormatDockerfile
-	default:
-		return FormatUnknown
+	// Special case for txt files
+	if ext == "txt" && strings.Contains(strings.ToLower(filename), "requirements") {
+		return FormatRequirements
 	}
+
+	if format, ok := extensionMap[ext]; ok {
+		return format
+	}
+
+	return FormatUnknown
 }
 
 // errorString returns empty string if error is nil
