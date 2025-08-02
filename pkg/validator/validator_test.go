@@ -581,3 +581,115 @@ func TestDetectFormatFromFilename(t *testing.T) {
 		})
 	}
 }
+
+func TestHelperFunctions(t *testing.T) {
+	t.Run("isJSON edge cases", func(t *testing.T) {
+		// Test empty string
+		if isJSON("") {
+			t.Error("isJSON(\"\") should return false")
+		}
+		// Test string that starts with { but doesn't end with }
+		if isJSON("{incomplete") {
+			t.Error("isJSON(\"{incomplete\") should return false")
+		}
+		// Test string that starts with [ but doesn't end with ]
+		if isJSON("[incomplete") {
+			t.Error("isJSON(\"[incomplete\") should return false")
+		}
+	})
+
+	t.Run("detectCSV edge cases", func(t *testing.T) {
+		// Test no commas
+		if detectCSV("no commas here", []string{"no commas here"}) {
+			t.Error("detectCSV should return false for text without commas")
+		}
+		// Test single line
+		if detectCSV("a,b,c", []string{"a,b,c"}) {
+			t.Error("detectCSV should return false for single line")
+		}
+		// Test empty first line commas
+		if detectCSV("test", []string{"test", "a,b"}) {
+			t.Error("detectCSV should return false when first line has no commas")
+		}
+	})
+
+	t.Run("detectMarkdown edge cases", func(t *testing.T) {
+		// Test empty lines
+		if detectMarkdown("", []string{}) {
+			t.Error("detectMarkdown should return false for empty content")
+		}
+		// Test no markdown patterns
+		if detectMarkdown("plain text", []string{"plain text"}) {
+			t.Error("detectMarkdown should return false for plain text")
+		}
+	})
+
+	t.Run("isINI edge cases", func(t *testing.T) {
+		// Test with brackets but not INI format
+		if isINI("array[0]", []string{"array[0]"}) {
+			t.Error("isINI should return false for non-INI brackets")
+		}
+		// Test missing closing bracket
+		if isINI("[section", []string{"[section"}) {
+			t.Error("isINI should return false for unclosed section")
+		}
+	})
+
+	t.Run("isYAML edge cases", func(t *testing.T) {
+		// Test URL with colon
+		if isYAML("http://example.com") {
+			t.Error("isYAML should return false for URLs")
+		}
+		// Test protobuf-like content
+		if isYAML("type_url: value") {
+			t.Error("isYAML should return false for protobuf content")
+		}
+		// Test no colon
+		if isYAML("no colon here") {
+			t.Error("isYAML should return false for text without colon")
+		}
+	})
+
+	t.Run("detectRequirements edge cases", func(t *testing.T) {
+		// Test with version specifiers but no package names
+		if detectRequirements("==1.0.0", []string{"==1.0.0"}) {
+			t.Error("detectRequirements should return false for version without package")
+		}
+		// Test comment only
+		if detectRequirements("# comment", []string{"# comment"}) {
+			t.Error("detectRequirements should return false for comments only")
+		}
+	})
+
+	t.Run("isJSONLines edge cases", func(t *testing.T) {
+		// Test mixed valid/invalid lines
+		lines := []string{"{\"valid\": true}", "not json", "{\"another\": true}"}
+		if isJSONLines(lines) {
+			t.Error("isJSONLines should return false when any line is invalid JSON")
+		}
+	})
+}
+
+func TestDetectFormatParallel(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		format Format
+	}{
+		{"json", `{"test": true}`, FormatJSON},
+		{"yaml", `key: value`, FormatYAML},
+		{"xml", `<root></root>`, FormatXML},
+		{"dockerfile", `FROM ubuntu:20.04`, FormatDockerfile},
+		{"csv", "name,age\nJohn,30", FormatCSV},
+		{"empty", "", FormatUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DetectFormatParallel([]byte(tt.input))
+			if result != tt.format {
+				t.Errorf("DetectFormatParallel() = %v, want %v", result, tt.format)
+			}
+		})
+	}
+}
