@@ -78,6 +78,40 @@ func TestValidateAuto(t *testing.T) {
 		{"yaml", `test: true`, FormatYAML, true},
 		{"xml", `<root><test>true</test></root>`, FormatXML, true},
 		{"toml", `test = true`, FormatTOML, true},
+		{"dockerfile", `FROM ubuntu:20.04
+RUN apt-get update
+COPY . /app
+CMD ["bash"]`, FormatDockerfile, true},
+		{"graphql", `query GetUser {
+  user(id: "123") {
+    name
+    email
+  }
+}`, FormatGraphQL, true},
+		{"csv", `name,age,city
+John,30,NYC
+Jane,25,LA`, FormatCSV, true},
+		{"hcl", `resource "aws_instance" "example" {
+  ami = "ami-12345"
+  instance_type = "t2.micro"
+}`, FormatHCL, true},
+		{"ini", `[database]
+host = localhost
+port = 5432`, FormatINI, true},
+		{"markdown", `# Title
+
+This is **bold** text.`, FormatMarkdown, true},
+		{"requirements", `numpy==1.21.0
+pandas>=1.3.0`, FormatRequirements, true},
+		{"jsonl", `{"event": "login"}
+{"event": "logout"}`, FormatJSONL, true},
+		{"jupyter", `{
+  "cells": [],
+  "metadata": {},
+  "nbformat": 4
+}`, FormatJupyter, true},
+		{"protobuf", `type_url: "type.googleapis.com/example"
+value: "test"`, FormatProtobuf, true},
 		{"unknown", `random text`, FormatUnknown, false},
 	}
 
@@ -405,6 +439,95 @@ ONBUILD RUN echo "trigger"`, true},
 			result := v.ValidateString(tt.input)
 			if result.Valid != tt.valid {
 				t.Errorf("ValidateString() = %v, want %v, error: %v", result.Valid, tt.valid, result.Error)
+			}
+		})
+	}
+}
+
+func TestDetectFormat(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		format Format
+	}{
+		// Basic formats
+		{"json object", `{"test": true}`, FormatJSON},
+		{"json array", `[1, 2, 3]`, FormatJSON},
+		{"yaml", `key: value`, FormatYAML},
+		{"xml", `<?xml version="1.0"?><root></root>`, FormatXML},
+		{"xml simple", `<root><item>test</item></root>`, FormatXML},
+		{"toml", `key = "value"`, FormatTOML},
+
+		// Dockerfile with various patterns
+		{"dockerfile basic", `FROM ubuntu:20.04`, FormatDockerfile},
+		{"dockerfile with comments", `# My Dockerfile
+FROM alpine:latest
+RUN apk add curl`, FormatDockerfile},
+		{"dockerfile multi instruction", `WORKDIR /app
+COPY . .
+RUN npm install
+CMD ["node", "app.js"]`, FormatDockerfile},
+
+		// GraphQL
+		{"graphql query", `query { users { name } }`, FormatGraphQL},
+		{"graphql mutation", `mutation CreateUser {
+  createUser(name: "John") {
+    id
+  }
+}`, FormatGraphQL},
+		{"graphql schema", `type User {
+  id: ID!
+  name: String
+}`, FormatGraphQL},
+
+		// HCL/Terraform
+		{"hcl resource", `resource "aws_instance" "example" {
+  ami = "ami-12345"
+}`, FormatHCL},
+		{"hcl variable", `variable "region" {
+  default = "us-west-2"
+}`, FormatHCL},
+
+		// CSV
+		{"csv simple", `name,age
+John,30
+Jane,25`, FormatCSV},
+
+		// INI
+		{"ini", `[section]
+key = value`, FormatINI},
+
+		// Markdown
+		{"markdown heading", `# Hello World`, FormatMarkdown},
+		{"markdown code block", "```go\nfunc main() {}\n```", FormatMarkdown},
+		{"markdown bold", `This is **bold** text`, FormatMarkdown},
+
+		// Requirements.txt
+		{"requirements", `numpy==1.21.0
+pandas>=1.3.0`, FormatRequirements},
+
+		// JSON Lines
+		{"jsonl", `{"a": 1}
+{"b": 2}
+{"c": 3}`, FormatJSONL},
+
+		// Jupyter
+		{"jupyter", `{"cells": [], "metadata": {}, "nbformat": 4}`, FormatJupyter},
+
+		// Protobuf text
+		{"protobuf", `type_url: "example.com/Type"
+value: "data"`, FormatProtobuf},
+
+		// Unknown
+		{"plain text", `just some random text`, FormatUnknown},
+		{"empty", ``, FormatUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DetectFormat([]byte(tt.input))
+			if result != tt.format {
+				t.Errorf("DetectFormat() = %v, want %v", result, tt.format)
 			}
 		})
 	}
