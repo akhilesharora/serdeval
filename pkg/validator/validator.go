@@ -685,7 +685,8 @@ func DetectFormat(data []byte) Format {
 func DetectFormatFromFilename(filename string) Format {
 	// Check for Dockerfile without extension first
 	baseName := strings.ToLower(filename[strings.LastIndex(filename, "/")+1:])
-	if baseName == "dockerfile" || strings.HasPrefix(baseName, "dockerfile.") {
+	const dockerfileName = "dockerfile"
+	if baseName == dockerfileName || strings.HasPrefix(baseName, dockerfileName+".") {
 		return FormatDockerfile
 	}
 
@@ -725,6 +726,7 @@ func DetectFormatFromFilename(filename string) Format {
 		if strings.Contains(strings.ToLower(filename), "requirements") {
 			return FormatRequirements
 		}
+
 		return FormatUnknown
 	case "dockerfile", "containerfile":
 		return FormatDockerfile
