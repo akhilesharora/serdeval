@@ -13,6 +13,16 @@ func TestNewValidator(t *testing.T) {
 		{FormatYAML, false},
 		{FormatXML, false},
 		{FormatTOML, false},
+		{FormatCSV, false},
+		{FormatGraphQL, false},
+		{FormatINI, false},
+		{FormatHCL, false},
+		{FormatProtobuf, false},
+		{FormatMarkdown, false},
+		{FormatJSONL, false},
+		{FormatJupyter, false},
+		{FormatRequirements, false},
+		{FormatDockerfile, false},
 		{Format("invalid"), true},
 	}
 
@@ -84,6 +94,322 @@ func TestValidateAuto(t *testing.T) {
 	}
 }
 
+func TestCSVValidator(t *testing.T) {
+	v := &CSVValidator{baseValidator{format: FormatCSV}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid csv", "name,age\nJohn,30\nJane,25", true},
+		{"valid single column", "name\nJohn\nJane", true},
+		{"empty csv", "", true},
+		{"inconsistent columns", "name,age\nJohn,30,extra", false},
+		{"quoted values", `"name","age"
+"John Doe","30"`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v", result.Valid, tt.valid)
+			}
+			if result.Format != FormatCSV {
+				t.Errorf("Format = %v, want %v", result.Format, FormatCSV)
+			}
+		})
+	}
+}
+
+func TestGraphQLValidator(t *testing.T) {
+	v := &GraphQLValidator{baseValidator{format: FormatGraphQL}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid query", `query { user { name } }`, true},
+		{"valid mutation", `mutation { createUser(name: "John") { id } }`, true},
+		{"valid schema", `type User { id: ID! name: String }`, true},
+		{"invalid syntax", `query { user {`, false},
+		{"empty", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v", result.Valid, tt.valid)
+			}
+			if result.Format != FormatGraphQL {
+				t.Errorf("Format = %v, want %v", result.Format, FormatGraphQL)
+			}
+		})
+	}
+}
+
+func TestINIValidator(t *testing.T) {
+	v := &INIValidator{baseValidator{format: FormatINI}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid ini", "[section]\nkey = value", true},
+		{"no section", "key = value", true},
+		{"multiple sections", "[section1]\nkey1 = value1\n[section2]\nkey2 = value2", true},
+		{"empty", "", true},
+		{"comments", "; comment\n[section]\nkey = value", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v", result.Valid, tt.valid)
+			}
+			if result.Format != FormatINI {
+				t.Errorf("Format = %v, want %v", result.Format, FormatINI)
+			}
+		})
+	}
+}
+
+func TestHCLValidator(t *testing.T) {
+	v := &HCLValidator{baseValidator{format: FormatHCL}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid hcl", `variable "region" { default = "us-west-2" }`, true},
+		{"terraform config", `resource "aws_instance" "example" { ami = "ami-12345" }`, true},
+		{"invalid syntax", `resource "test" {`, false},
+		{"empty", "", true},
+		{"nested blocks", `provider "aws" { region = var.region }`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v, error: %v", result.Valid, tt.valid, result.Error)
+			}
+			if result.Format != FormatHCL {
+				t.Errorf("Format = %v, want %v", result.Format, FormatHCL)
+			}
+		})
+	}
+}
+
+func TestProtobufValidator(t *testing.T) {
+	v := &ProtobufValidator{baseValidator{format: FormatProtobuf}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid protobuf text", `type_url: "type.googleapis.com/google.protobuf.StringValue"
+value: "\n\x05hello"`, true},
+		{"empty", "", true}, // Empty is valid protobuf text format
+		{"invalid syntax", `type_url: "missing quote`, false},
+		{"simple message", `value: "test"`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v, error: %v", result.Valid, tt.valid, result.Error)
+			}
+			if result.Format != FormatProtobuf {
+				t.Errorf("Format = %v, want %v", result.Format, FormatProtobuf)
+			}
+		})
+	}
+}
+
+func TestMarkdownValidator(t *testing.T) {
+	v := &MarkdownValidator{baseValidator{format: FormatMarkdown}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid markdown", "# Hello\n\nThis is **bold** text.", true},
+		{"empty", "", true},
+		{"plain text", "Just plain text", true},
+		{"code block", "```go\nfunc main() {}\n```", true},
+		{"list", "- Item 1\n- Item 2\n  - Nested", true},
+		{"link", "[Link](https://example.com)", true},
+		{"table", "| Col1 | Col2 |\n|------|------|\n| A    | B    |", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v, error: %v", result.Valid, tt.valid, result.Error)
+			}
+			if result.Format != FormatMarkdown {
+				t.Errorf("Format = %v, want %v", result.Format, FormatMarkdown)
+			}
+		})
+	}
+}
+
+func TestJSONLValidator(t *testing.T) {
+	v := &JSONLValidator{baseValidator{format: FormatJSONL}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid jsonl", `{"name": "Alice", "age": 30}
+{"name": "Bob", "age": 25}
+{"name": "Charlie", "age": 35}`, true},
+		{"empty", "", true},
+		{"single line", `{"key": "value"}`, true},
+		{"empty lines between", `{"a": 1}
+
+{"b": 2}`, true},
+		{"invalid json on line", `{"valid": true}
+{invalid json}
+{"valid": true}`, false},
+		{"mixed types", `{"type": "object"}
+[1, 2, 3]
+"string"
+123
+true
+null`, true},
+		{"trailing newline", `{"a": 1}
+{"b": 2}
+`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v, error: %v", result.Valid, tt.valid, result.Error)
+			}
+			if result.Format != FormatJSONL {
+				t.Errorf("Format = %v, want %v", result.Format, FormatJSONL)
+			}
+		})
+	}
+}
+
+func TestJupyterValidator(t *testing.T) {
+	v := &JupyterValidator{baseValidator{format: FormatJupyter}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid notebook", `{
+			"cells": [],
+			"metadata": {},
+			"nbformat": 4,
+			"nbformat_minor": 2
+		}`, true},
+		{"invalid json", `{invalid}`, false},
+		{"missing cells", `{"metadata": {}, "nbformat": 4}`, false},
+		{"missing metadata", `{"cells": [], "nbformat": 4}`, false},
+		{"missing nbformat", `{"cells": [], "metadata": {}}`, false},
+		{"empty", `{}`, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v, error: %v", result.Valid, tt.valid, result.Error)
+			}
+		})
+	}
+}
+
+func TestRequirementsValidator(t *testing.T) {
+	v := &RequirementsValidator{baseValidator{format: FormatRequirements}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid requirements", "numpy==1.21.0\npandas>=1.3.0\nscikit-learn", true},
+		{"with comments", "# ML dependencies\nnumpy==1.21.0\n# Data processing\npandas", true},
+		{"empty", "", true},
+		{"empty lines", "numpy\n\npandas\n\n", true},
+		{"complex versions", "torch>=1.9.0,<2.0.0\ntensorflow~=2.8.0", true},
+		{"git urls", "git+https://github.com/user/repo.git", true},
+		{"invalid line", "===", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v, error: %v", result.Valid, tt.valid, result.Error)
+			}
+		})
+	}
+}
+
+func TestDockerfileValidator(t *testing.T) {
+	v := &DockerfileValidator{baseValidator{format: FormatDockerfile}}
+
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"valid dockerfile", "FROM ubuntu:20.04\nRUN apt-get update\nCMD [\"bash\"]", true},
+		{"multi-stage", "FROM node:14 as builder\nRUN npm install\nFROM node:14-alpine\nCOPY --from=builder /app /app", true},
+		{"with comments", "# Base image\nFROM python:3.9\n# Install deps\nRUN pip install numpy", true},
+		{"missing FROM", "RUN apt-get update\nCMD [\"bash\"]", false},
+		{"invalid instruction", "FROM ubuntu\nINVALID instruction here", false},
+		{"empty", "", false},
+		{"line continuation", "FROM ubuntu\nRUN apt-get update && \\\n    apt-get install -y python3", true},
+		{"all instructions", `FROM ubuntu
+ARG VERSION=latest
+ENV PATH=/usr/local/bin:$PATH
+LABEL maintainer="test@example.com"
+RUN apt-get update
+COPY . /app
+ADD file.tar.gz /tmp/
+WORKDIR /app
+EXPOSE 8080
+VOLUME /data
+USER nobody
+ENTRYPOINT ["python"]
+CMD ["app.py"]
+HEALTHCHECK CMD curl -f http://localhost/ || exit 1
+STOPSIGNAL SIGTERM
+SHELL ["/bin/bash", "-c"]
+ONBUILD RUN echo "trigger"`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := v.ValidateString(tt.input)
+			if result.Valid != tt.valid {
+				t.Errorf("ValidateString() = %v, want %v, error: %v", result.Valid, tt.valid, result.Error)
+			}
+		})
+	}
+}
+
 func TestDetectFormatFromFilename(t *testing.T) {
 	tests := []struct {
 		filename string
@@ -95,6 +421,30 @@ func TestDetectFormatFromFilename(t *testing.T) {
 		{"test.yml", FormatYAML},
 		{"test.xml", FormatXML},
 		{"test.toml", FormatTOML},
+		{"test.csv", FormatCSV},
+		{"test.CSV", FormatCSV},
+		{"test.graphql", FormatGraphQL},
+		{"test.gql", FormatGraphQL},
+		{"test.ini", FormatINI},
+		{"test.cfg", FormatINI},
+		{"test.hcl", FormatHCL},
+		{"test.tf", FormatHCL},
+		{"test.proto", FormatProtobuf},
+		{"test.pb", FormatProtobuf},
+		{"test.textproto", FormatProtobuf},
+		{"test.pbtxt", FormatProtobuf},
+		{"test.md", FormatMarkdown},
+		{"test.markdown", FormatMarkdown},
+		{"test.jsonl", FormatJSONL},
+		{"test.ndjson", FormatJSONL},
+		{"test.ipynb", FormatJupyter},
+		{"notebook.ipynb", FormatJupyter},
+		{"requirements.txt", FormatRequirements},
+		{"requirements-dev.txt", FormatRequirements},
+		{"Dockerfile", FormatDockerfile},
+		{"dockerfile", FormatDockerfile},
+		{"Dockerfile.prod", FormatDockerfile},
+		{"my.dockerfile", FormatDockerfile},
 		{"test.txt", FormatUnknown},
 		{"test", FormatUnknown},
 	}

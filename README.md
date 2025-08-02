@@ -8,7 +8,7 @@
 [![Go Version](https://img.shields.io/badge/go%20version-%3E=1.22-61CFDD.svg?style=flat-square)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A privacy-focused, blazingly fast data format validator for JSON, YAML, XML, and TOML.
+A privacy-focused, blazingly fast data format validator supporting 14+ formats including JSON, YAML, XML, TOML, CSV, GraphQL, Markdown, and more.
 
 **Privacy-focused**: All validation happens locally on your machine.
 
@@ -28,12 +28,22 @@ A privacy-focused, blazingly fast data format validator for JSON, YAML, XML, and
 
 ### Supported Formats
 
-| Format | Extension | Auto-Detection | Validation | Formatting |
-|--------|-----------|----------------|------------|------------|
-| JSON   | `.json`   | ✅             | ✅         | ✅         |
-| YAML   | `.yaml`, `.yml` | ✅       | ✅         | ✅         |
-| XML    | `.xml`    | ✅             | ✅         | ✅         |
-| TOML   | `.toml`   | ✅             | ✅         | ✅         |
+| Format | Extensions | Auto-Detection | Validation | Use Case |
+|--------|------------|----------------|------------|----------|
+| JSON   | `.json`    | ✅             | ✅         | APIs, Config files |
+| YAML   | `.yaml`, `.yml` | ✅       | ✅         | Kubernetes, CI/CD |
+| XML    | `.xml`     | ✅             | ✅         | Enterprise, SOAP |
+| TOML   | `.toml`    | ✅             | ✅         | Config files |
+| CSV    | `.csv`     | ✅             | ✅         | Data exchange |
+| GraphQL| `.graphql`, `.gql` | ✅    | ✅         | API schemas |
+| INI    | `.ini`, `.cfg`, `.conf` | ✅ | ✅      | Config files |
+| HCL    | `.hcl`, `.tf`, `.tfvars` | ✅ | ✅    | Terraform |
+| Protobuf| `.proto`, `.textproto` | ✅ | ✅      | Protocol Buffers |
+| Markdown| `.md`, `.markdown` | ✅   | ✅         | Documentation |
+| JSON Lines| `.jsonl`, `.ndjson` | ✅ | ✅       | Streaming data |
+| Jupyter | `.ipynb`  | ✅             | ✅         | Data science |
+| Requirements.txt | `.txt` | ✅     | ✅         | Python deps |
+| Dockerfile | `Dockerfile*` | ✅     | ✅         | Containers |
 
 ## 📦 Installation
 
