@@ -8,7 +8,9 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/BurntSushi/toml"
 	"github.com/graphql-go/graphql/language/parser"
@@ -616,6 +618,307 @@ func ValidateAuto(data []byte) Result {
 	return result
 }
 
+// isJupyterNotebook checks if content is a Jupyter notebook
+func isJupyterNotebook(trimmed string) bool {
+	return strings.HasPrefix(trimmed, "{") &&
+		strings.Contains(trimmed, "\"cells\"") &&
+		strings.Contains(trimmed, "\"metadata\"") &&
+		strings.Contains(trimmed, "\"nbformat\"")
+}
+
+// isJSONLines checks if content is JSON Lines format
+func isJSONLines(lines []string) bool {
+	if len(lines) <= 1 {
+		return false
+	}
+
+	validLines := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if !isJSONLine(line) {
+			return false
+		}
+		validLines++
+	}
+
+	return validLines > 1
+}
+
+// isJSONLine checks if a single line is valid JSON
+func isJSONLine(line string) bool {
+	return (strings.HasPrefix(line, "{") && strings.HasSuffix(line, "}")) ||
+		(strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]"))
+}
+
+// isJSON checks if content is regular JSON
+func isJSON(trimmed string) bool {
+	if len(trimmed) == 0 {
+		return false
+	}
+
+	return (strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")) ||
+		(strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]"))
+}
+
+// detectJSONFamily checks for JSON-based formats (JSON, JSONL, Jupyter)
+func detectJSONFamily(trimmed string, lines []string) Format {
+	// Check for Jupyter Notebook first (it's a specific type of JSON)
+	if isJupyterNotebook(trimmed) {
+		return FormatJupyter
+	}
+
+	// Check for JSON Lines before regular JSON
+	if isJSONLines(lines) {
+		return FormatJSONL
+	}
+
+	// Check JSON (after Jupyter and JSONL)
+	if isJSON(trimmed) {
+		return FormatJSON
+	}
+
+	return FormatUnknown
+}
+
+// countPatterns counts how many patterns are found in the text
+func countPatterns(text string, patterns []string) int {
+	count := 0
+	for _, pattern := range patterns {
+		if strings.Contains(text, pattern) {
+			count++
+		}
+	}
+
+	return count
+}
+
+// isDockerfile checks if content is a Dockerfile
+func isDockerfile(upperTrimmed string) bool {
+	dockerKeywords := []string{
+		"FROM ", "RUN ", "CMD ", "EXPOSE ", "ENV ", "ADD ", "COPY ",
+		"ENTRYPOINT ", "VOLUME ", "USER ", "WORKDIR ", "ARG ",
+	}
+	dockerScore := countPatterns(upperTrimmed, dockerKeywords)
+
+	return strings.Contains(upperTrimmed, "FROM ") || dockerScore >= 3
+}
+
+// isHCL checks if content is HCL/Terraform format
+func isHCL(trimmed string) bool {
+	hclPatterns := []string{
+		"resource ", "variable ", "provider ", "module ",
+		"output ", "locals ", "terraform ", "data ",
+	}
+	hclScore := countPatterns(trimmed, hclPatterns)
+
+	return hclScore > 0 &&
+		strings.Contains(trimmed, "=") &&
+		strings.Contains(trimmed, "\"") &&
+		strings.Contains(trimmed, "{")
+}
+
+// isGraphQL checks if content is GraphQL format
+func isGraphQL(trimmed string) bool {
+	graphqlPatterns := []string{
+		"query ", "mutation ", "subscription ", "fragment ", "type ",
+		"interface ", "enum ", "input ", "scalar ", "schema ",
+	}
+	graphqlScore := countPatterns(trimmed, graphqlPatterns)
+	if graphqlScore == 0 || !strings.Contains(trimmed, "{") || !strings.Contains(trimmed, "}") {
+		return false
+	}
+
+	return strings.Contains(trimmed, "{\n") || strings.Contains(trimmed, "{ ") || graphqlScore >= 2
+}
+
+// isProtobuf checks if content is Protobuf text format
+func isProtobuf(trimmed string) bool {
+	return (strings.Contains(trimmed, "type_url:") || strings.Contains(trimmed, "value:")) &&
+		strings.Contains(trimmed, "\"")
+}
+
+// detectDeveloperFormats checks for developer-specific formats
+func detectDeveloperFormats(trimmed string, lines []string) Format {
+	upperTrimmed := strings.ToUpper(trimmed)
+
+	// Check Dockerfile - look for common Docker instructions
+	if isDockerfile(upperTrimmed) {
+		return FormatDockerfile
+	}
+
+	// Check HCL/Terraform before GraphQL (HCL is more specific)
+	if isHCL(trimmed) {
+		return FormatHCL
+	}
+
+	// Check GraphQL - look for GraphQL-specific patterns
+	if isGraphQL(trimmed) {
+		return FormatGraphQL
+	}
+
+	// Check for Protobuf text format before YAML (more specific)
+	if isProtobuf(trimmed) {
+		return FormatProtobuf
+	}
+
+	return FormatUnknown
+}
+
+// detectCSV checks if the content is CSV format
+func detectCSV(trimmed string, lines []string) bool {
+	if !strings.Contains(trimmed, ",") || len(lines) <= 1 {
+		return false
+	}
+
+	firstLineCommas := strings.Count(lines[0], ",")
+	if firstLineCommas == 0 {
+		return false
+	}
+
+	for i := 1; i < len(lines) && i < 5; i++ {
+		if lines[i] != "" && strings.Count(lines[i], ",") != firstLineCommas {
+			return false
+		}
+	}
+
+	return true
+}
+
+// detectMarkdown checks if the content is Markdown format
+func detectMarkdown(trimmed string, lines []string) bool {
+	if len(lines) == 0 {
+		return false
+	}
+
+	// Check for common markdown patterns
+	return strings.HasPrefix(lines[0], "#") ||
+		strings.Contains(trimmed, "```") ||
+		strings.Contains(trimmed, "**") ||
+		strings.Contains(trimmed, "~~") ||
+		(strings.Contains(trimmed, "[") && strings.Contains(trimmed, "]("))
+}
+
+// detectRequirements checks if the content is Requirements.txt format
+func detectRequirements(trimmed string, lines []string) bool {
+	if !strings.Contains(trimmed, "==") && !strings.Contains(trimmed, ">=") &&
+		!strings.Contains(trimmed, "<=") && !strings.Contains(trimmed, "~=") {
+		return false
+	}
+
+	// Check if it looks like Python packages
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			if strings.ContainsAny(line, "abcdefghijklmnopqrstuvwxyz") {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// detectDataFormats checks for data exchange formats
+func detectDataFormats(trimmed string, lines []string) Format {
+	// Check CSV
+	if detectCSV(trimmed, lines) {
+		return FormatCSV
+	}
+
+	// Check Markdown
+	if detectMarkdown(trimmed, lines) {
+		return FormatMarkdown
+	}
+
+	// Check Requirements.txt
+	if detectRequirements(trimmed, lines) {
+		return FormatRequirements
+	}
+
+	return FormatUnknown
+}
+
+// isXML checks if content is XML format
+func isXML(trimmed string) bool {
+	return strings.HasPrefix(trimmed, "<?xml") ||
+		(strings.HasPrefix(trimmed, "<") && strings.Contains(trimmed, ">"))
+}
+
+// isINI checks if content is INI format
+func isINI(trimmed string, lines []string) bool {
+	if !strings.Contains(trimmed, "[") || !strings.Contains(trimmed, "]") {
+		return false
+	}
+
+	// Check for INI section pattern
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isYAML checks if content is YAML format
+func isYAML(trimmed string) bool {
+	if strings.Contains(trimmed, "---") {
+		return true
+	}
+
+	if !strings.Contains(trimmed, ":") || strings.Contains(trimmed, "://") {
+		return false
+	}
+
+	// Additional check to ensure it's not a URL or Protobuf
+	if strings.Contains(trimmed, "type_url:") || strings.Contains(trimmed, "value:") {
+		return false
+	}
+
+	return strings.Contains(trimmed, ": ") || strings.HasSuffix(trimmed, ":")
+}
+
+// isTOML checks if content is TOML format
+func isTOML(trimmed string) bool {
+	if !strings.Contains(trimmed, "=") || strings.Contains(trimmed, ":") {
+		return false
+	}
+
+	// Make sure it's not JSON or XML
+	return !strings.HasPrefix(trimmed, "{") &&
+		!strings.HasPrefix(trimmed, "[") &&
+		!strings.HasPrefix(trimmed, "<")
+}
+
+// detectConfigFormats checks for configuration file formats
+func detectConfigFormats(trimmed string, lines []string) Format {
+	// Check XML
+	if isXML(trimmed) {
+		return FormatXML
+	}
+
+	// Check INI (after CSV to avoid confusion)
+	if isINI(trimmed, lines) {
+		return FormatINI
+	}
+
+	// Check YAML
+	if isYAML(trimmed) {
+		return FormatYAML
+	}
+
+	// Check TOML - simple key=value pattern
+	if isTOML(trimmed) {
+		return FormatTOML
+	}
+
+	return FormatUnknown
+}
+
 // DetectFormat attempts to detect the data format by analyzing the content.
 // Uses simple heuristics to identify various data formats.
 //
@@ -641,184 +944,89 @@ func DetectFormat(data []byte) Format {
 	// Split into lines for multi-line format detection
 	lines := strings.Split(trimmed, "\n")
 
-	// Check for Jupyter Notebook first (it's a specific type of JSON)
-	if strings.HasPrefix(trimmed, "{") && strings.Contains(trimmed, "\"cells\"") &&
-		strings.Contains(trimmed, "\"metadata\"") && strings.Contains(trimmed, "\"nbformat\"") {
-		return FormatJupyter
+	// Sequential detection for now (parallel overhead not worth it for simple string checks)
+	// Try detection in order of specificity
+	// Check JSON family first as they have distinct patterns
+	if format := detectJSONFamily(trimmed, lines); format != FormatUnknown {
+		return format
 	}
 
-	// Check for JSON Lines before regular JSON
-	if len(lines) > 1 {
-		validJSONLines := 0
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				if (strings.HasPrefix(line, "{") && strings.HasSuffix(line, "}")) ||
-					(strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]")) {
-					validJSONLines++
-				} else {
-					validJSONLines = 0
+	// Check developer formats
+	if format := detectDeveloperFormats(trimmed, lines); format != FormatUnknown {
+		return format
+	}
 
-					break
+	// Check data formats
+	if format := detectDataFormats(trimmed, lines); format != FormatUnknown {
+		return format
+	}
+
+	// Check config formats last as they're more general
+	if format := detectConfigFormats(trimmed, lines); format != FormatUnknown {
+		return format
+	}
+
+	return FormatUnknown
+}
+
+// DetectFormatParallel attempts to detect the data format using parallel detection.
+// Uses GOMAXPROCS goroutines to check different format families concurrently.
+// This is mainly useful for educational purposes as the overhead usually exceeds benefits.
+func DetectFormatParallel(data []byte) Format {
+	trimmed := strings.TrimSpace(string(data))
+	if len(trimmed) == 0 {
+		return FormatUnknown
+	}
+
+	lines := strings.Split(trimmed, "\n")
+
+	// Detection functions to run in parallel
+	type detectorFunc func(string, []string) Format
+	detectors := []detectorFunc{
+		detectJSONFamily,
+		detectDeveloperFormats,
+		detectDataFormats,
+		detectConfigFormats,
+	}
+
+	// Use a channel to collect results
+	resultChan := make(chan Format, len(detectors))
+	var wg sync.WaitGroup
+
+	// Limit concurrency to GOMAXPROCS
+	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
+
+	// Run detectors in parallel
+	for _, detector := range detectors {
+		wg.Add(1)
+		go func(fn detectorFunc) {
+			defer wg.Done()
+
+			// Acquire semaphore
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			if format := fn(trimmed, lines); format != FormatUnknown {
+				select {
+				case resultChan <- format:
+					// Successfully sent result
+				default:
+					// Channel already has a result, ignore
 				}
 			}
-		}
-		if validJSONLines > 1 {
-			return FormatJSONL
-		}
+		}(detector)
 	}
 
-	// Check JSON (after Jupyter and JSONL)
-	if trimmed[0] == '{' || trimmed[0] == '[' {
-		// Verify it's valid JSON structure
-		if strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}") {
-			return FormatJSON
-		}
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-			return FormatJSON
-		}
-	}
+	// Wait for all detectors to complete
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
 
-	// Check XML
-	if strings.HasPrefix(trimmed, "<?xml") || (strings.HasPrefix(trimmed, "<") && strings.Contains(trimmed, ">")) {
-		return FormatXML
-	}
-
-	// Check Dockerfile - look for common Docker instructions
-	upperTrimmed := strings.ToUpper(trimmed)
-	dockerKeywords := []string{
-		"FROM ", "RUN ", "CMD ", "EXPOSE ", "ENV ", "ADD ", "COPY ",
-		"ENTRYPOINT ", "VOLUME ", "USER ", "WORKDIR ", "ARG ",
-	}
-	dockerScore := 0
-	for _, keyword := range dockerKeywords {
-		if strings.Contains(upperTrimmed, keyword) {
-			dockerScore++
-		}
-	}
-	// If we find FROM or multiple Docker keywords, it's likely a Dockerfile
-	if strings.Contains(upperTrimmed, "FROM ") || dockerScore >= 3 {
-		return FormatDockerfile
-	}
-
-	// Check HCL/Terraform before GraphQL (HCL is more specific)
-	hclPatterns := []string{
-		"resource ", "variable ", "provider ", "module ",
-		"output ", "locals ", "terraform ", "data ",
-	}
-	hclScore := 0
-	for _, pattern := range hclPatterns {
-		if strings.Contains(trimmed, pattern) {
-			hclScore++
-		}
-	}
-	// HCL uses quotes and braces with equals signs
-	if hclScore > 0 && strings.Contains(trimmed, "=") &&
-		strings.Contains(trimmed, "\"") && strings.Contains(trimmed, "{") {
-		return FormatHCL
-	}
-
-	// Check GraphQL - look for GraphQL-specific patterns
-	graphqlPatterns := []string{
-		"query ", "mutation ", "subscription ", "fragment ", "type ",
-		"interface ", "enum ", "input ", "scalar ", "schema ",
-	}
-	graphqlScore := 0
-	for _, pattern := range graphqlPatterns {
-		if strings.Contains(trimmed, pattern) {
-			graphqlScore++
-		}
-	}
-	// Check for GraphQL-specific syntax
-	if graphqlScore > 0 && strings.Contains(trimmed, "{") && strings.Contains(trimmed, "}") {
-		// Additional check for field selection syntax
-		if strings.Contains(trimmed, "{\n") || strings.Contains(trimmed, "{ ") || graphqlScore >= 2 {
-			return FormatGraphQL
-		}
-	}
-
-	// Check Markdown
-	if len(lines) > 0 {
-		// Check for common markdown patterns
-		if strings.HasPrefix(lines[0], "#") || strings.Contains(trimmed, "```") ||
-			strings.Contains(trimmed, "**") || strings.Contains(trimmed, "~~") ||
-			(strings.Contains(trimmed, "[") && strings.Contains(trimmed, "](")) {
-			return FormatMarkdown
-		}
-	}
-
-	// Check Requirements.txt
-	if strings.Contains(trimmed, "==") || strings.Contains(trimmed, ">=") ||
-		strings.Contains(trimmed, "<=") || strings.Contains(trimmed, "~=") {
-		// Check if it looks like Python packages
-		hasPackagePattern := false
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" && !strings.HasPrefix(line, "#") {
-				// Simple check for package-like names
-				if strings.ContainsAny(line, "abcdefghijklmnopqrstuvwxyz") {
-					hasPackagePattern = true
-
-					break
-				}
-			}
-		}
-		if hasPackagePattern {
-			return FormatRequirements
-		}
-	}
-
-	// Check CSV
-	if strings.Contains(trimmed, ",") {
-		// Simple CSV detection - check if lines have consistent comma counts
-		if len(lines) > 1 {
-			firstLineCommas := strings.Count(lines[0], ",")
-			isCSV := true
-			for i := 1; i < len(lines) && i < 5; i++ {
-				if lines[i] != "" && strings.Count(lines[i], ",") != firstLineCommas {
-					isCSV = false
-
-					break
-				}
-			}
-			if isCSV && firstLineCommas > 0 {
-				return FormatCSV
-			}
-		}
-	}
-
-	// Check INI (after CSV to avoid confusion)
-	if strings.Contains(trimmed, "[") && strings.Contains(trimmed, "]") {
-		// Check for INI section pattern
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-				return FormatINI
-			}
-		}
-	}
-
-	// Check for Protobuf text format before YAML (more specific)
-	if (strings.Contains(trimmed, "type_url:") || strings.Contains(trimmed, "value:")) &&
-		strings.Contains(trimmed, "\"") {
-		return FormatProtobuf
-	}
-
-	// Check YAML
-	if strings.Contains(trimmed, "---") || (strings.Contains(trimmed, ":") && !strings.Contains(trimmed, "://")) {
-		// Additional check to ensure it's not a URL or Protobuf
-		if !strings.Contains(trimmed, "type_url:") && !strings.Contains(trimmed, "value:") {
-			if strings.Contains(trimmed, ": ") || strings.HasSuffix(trimmed, ":") {
-				return FormatYAML
-			}
-		}
-	}
-
-	// Check TOML - simple key=value pattern
-	if strings.Contains(trimmed, "=") && !strings.Contains(trimmed, ":") {
-		// Make sure it's not JSON or XML
-		if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") && !strings.HasPrefix(trimmed, "<") {
-			return FormatTOML
+	// Return first detected format
+	for format := range resultChan {
+		if format != FormatUnknown {
+			return format
 		}
 	}
 

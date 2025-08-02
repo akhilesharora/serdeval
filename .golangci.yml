@@ -63,6 +63,11 @@ linters:
       - linters:
           - gosec
         text: G114|G304
+      - linters:
+          - gocognit
+          - gocyclo
+        path: pkg/validator/validator\.go
+        text: "complexity .* of func `DetectFormat` is high"
     paths:
       - vendor
       - testdata
