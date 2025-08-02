@@ -8,9 +8,9 @@
 [![Go Version](https://img.shields.io/badge/go%20version-%3E=1.22-61CFDD.svg?style=flat-square)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A privacy-focused, blazingly fast data format validator for JSON, YAML, XML, and TOML. **100% offline** with **zero data retention**.
+A privacy-focused, blazingly fast data format validator for JSON, YAML, XML, and TOML.
 
-🔒 **Privacy Guarantee**: Your data never leaves your machine - no logging, no tracking, no retention.
+**Privacy-focused**: All validation happens locally on your machine.
 
 ## 🌐 Live Demo
 
