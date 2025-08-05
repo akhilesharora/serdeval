@@ -55,10 +55,17 @@ const (
 	FormatRequirements Format = "requirements"
 	// FormatDockerfile represents Dockerfile format
 	FormatDockerfile Format = "dockerfile"
+	// FormatR represents R code format
+	FormatR Format = "r"
+	// FormatRMarkdown represents R Markdown format
+	FormatRMarkdown Format = "rmarkdown"
 	// FormatAuto represents automatic format detection
 	FormatAuto Format = "auto"
 	// FormatUnknown represents unknown format
 	FormatUnknown Format = "unknown"
+
+	// yamlDelimiter is the delimiter used in YAML frontmatter
+	yamlDelimiter = "---"
 )
 
 // Result contains the validation result for a data format validation operation.
@@ -276,6 +283,28 @@ type DockerfileValidator struct {
 	baseValidator
 }
 
+// RValidator validates R code format.
+// It checks for valid R syntax and structure.
+//
+// Example:
+//
+//	validator := &RValidator{baseValidator{format: FormatR}}
+//	result := validator.ValidateString("x <- c(1, 2, 3)\nmean(x)")
+type RValidator struct {
+	baseValidator
+}
+
+// RMarkdownValidator validates R Markdown format.
+// It checks for valid Rmd structure with YAML header and code chunks.
+//
+// Example:
+//
+//	validator := &RMarkdownValidator{baseValidator{format: FormatRMarkdown}}
+//	result := validator.ValidateString("---\ntitle: 'Test'\n---\n\n```{r}\nplot(1:10)\n```")
+type RMarkdownValidator struct {
+	baseValidator
+}
+
 // validatorMap maps formats to their validator constructors
 var validatorMap = map[Format]func() Validator{
 	FormatJSON:         func() Validator { return &JSONValidator{baseValidator{format: FormatJSON}} },
@@ -292,6 +321,8 @@ var validatorMap = map[Format]func() Validator{
 	FormatJupyter:      func() Validator { return &JupyterValidator{baseValidator{format: FormatJupyter}} },
 	FormatRequirements: func() Validator { return &RequirementsValidator{baseValidator{format: FormatRequirements}} },
 	FormatDockerfile:   func() Validator { return &DockerfileValidator{baseValidator{format: FormatDockerfile}} },
+	FormatR:            func() Validator { return &RValidator{baseValidator{format: FormatR}} },
+	FormatRMarkdown:    func() Validator { return &RMarkdownValidator{baseValidator{format: FormatRMarkdown}} },
 }
 
 // NewValidator creates a new validator for the specified format.
@@ -884,6 +915,181 @@ func (v *DockerfileValidator) ValidateString(data string) Result {
 	return v.Validate([]byte(data))
 }
 
+// Validate checks if the provided byte slice contains valid R code.
+// It performs basic syntax checking for R language constructs.
+//
+// Example:
+//
+//	validator := &RValidator{baseValidator{format: FormatR}}
+//	result := validator.Validate([]byte("x <- c(1, 2, 3)\nprint(mean(x))"))
+func (v *RValidator) Validate(data []byte) Result {
+	content := string(data)
+	if strings.TrimSpace(content) == "" {
+		return Result{
+			Valid:  false,
+			Format: v.format,
+			Error:  "empty R code",
+		}
+	}
+
+	// Basic R syntax validation
+	openParens := strings.Count(content, "(")
+	closeParens := strings.Count(content, ")")
+	if openParens != closeParens {
+		return Result{
+			Valid:  false,
+			Format: v.format,
+			Error:  "unmatched parentheses",
+		}
+	}
+
+	openBrackets := strings.Count(content, "{")
+	closeBrackets := strings.Count(content, "}")
+	if openBrackets != closeBrackets {
+		return Result{
+			Valid:  false,
+			Format: v.format,
+			Error:  "unmatched curly brackets",
+		}
+	}
+
+	openSquare := strings.Count(content, "[")
+	closeSquare := strings.Count(content, "]")
+	if openSquare != closeSquare {
+		return Result{
+			Valid:  false,
+			Format: v.format,
+			Error:  "unmatched square brackets",
+		}
+	}
+
+	// Check for unterminated strings
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		quoteCount := 0
+		inString := false
+		escaped := false
+		for _, ch := range line {
+			if escaped {
+				escaped = false
+
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+
+				continue
+			}
+			if ch == '"' || ch == '\'' {
+				quoteCount++
+				inString = !inString
+			}
+		}
+		if inString {
+			return Result{
+				Valid:  false,
+				Format: v.format,
+				Error:  fmt.Sprintf("unterminated string on line %d", i+1),
+			}
+		}
+	}
+
+	return Result{
+		Valid:  true,
+		Format: v.format,
+		Error:  "",
+	}
+}
+
+// ValidateString is a convenience method that accepts a string instead of []byte.
+func (v *RValidator) ValidateString(data string) Result {
+	return v.Validate([]byte(data))
+}
+
+// Validate checks if the provided byte slice contains valid R Markdown.
+// It checks for YAML frontmatter and R code chunks.
+//
+// Example:
+//
+//	validator := &RMarkdownValidator{baseValidator{format: FormatRMarkdown}}
+//	result := validator.Validate([]byte("---\ntitle: 'Analysis'\n---\n\n```{r}\nplot(1:10)\n```"))
+func (v *RMarkdownValidator) Validate(data []byte) Result {
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	if len(lines) == 0 {
+		return Result{
+			Valid:  false,
+			Format: v.format,
+			Error:  "empty R Markdown content",
+		}
+	}
+
+	// Check for R code chunks
+	hasRChunk := false
+	inChunk := false
+	chunkStart := 0
+
+	for i, line := range lines {
+		// Check for R chunk start
+		if strings.HasPrefix(strings.TrimSpace(line), "```{r") || strings.HasPrefix(strings.TrimSpace(line), "```{R") {
+			if inChunk {
+				return Result{
+					Valid:  false,
+					Format: v.format,
+					Error:  fmt.Sprintf("nested code chunk at line %d", i+1),
+				}
+			}
+			hasRChunk = true
+			inChunk = true
+			chunkStart = i
+		} else if strings.TrimSpace(line) == "```" && inChunk {
+			inChunk = false
+		}
+	}
+
+	if inChunk {
+		return Result{
+			Valid:  false,
+			Format: v.format,
+			Error:  fmt.Sprintf("unclosed code chunk starting at line %d", chunkStart+1),
+		}
+	}
+
+	// Valid R Markdown can have no chunks (just markdown)
+	// but we check if it looks like R Markdown based on content
+	hasYAMLHeader := len(lines) >= 3 && strings.TrimSpace(lines[0]) == yamlDelimiter
+
+	// If it has YAML header or R chunks, it's valid R Markdown
+	if hasYAMLHeader || hasRChunk {
+		return Result{
+			Valid:  true,
+			Format: v.format,
+			Error:  "",
+		}
+	}
+
+	// Check if it's just markdown
+	if detectMarkdown(content, lines) {
+		return Result{
+			Valid:  true,
+			Format: v.format,
+			Error:  "",
+		}
+	}
+
+	return Result{
+		Valid:  false,
+		Format: v.format,
+		Error:  "not a valid R Markdown file",
+	}
+}
+
+// ValidateString is a convenience method that accepts a string instead of []byte.
+func (v *RMarkdownValidator) ValidateString(data string) Result {
+	return v.Validate([]byte(data))
+}
+
 // ValidateAuto validates data with automatic format detection.
 // It first attempts to detect the format, then validates using the appropriate validator.
 //
@@ -1053,6 +1259,60 @@ func isProtobuf(trimmed string) bool {
 		strings.Contains(trimmed, "\"")
 }
 
+// isRCode checks if the content appears to be R code.
+// It looks for R-specific syntax patterns like <-, function(), library(), etc.
+func isRCode(trimmed string, lines []string) bool {
+	// R-specific patterns
+	rPatterns := []string{
+		"<-", "<<-", "->", "->>", // Assignment operators
+		"function(", "library(", "require(", "source(",
+		"data.frame(", "c(", "list(", "matrix(",
+		"plot(", "ggplot(", "lm(", "summary(",
+		"install.packages(", "setwd(", "getwd(",
+		"read.csv(", "write.csv(", "read.table(",
+	}
+
+	rScore := countPatterns(trimmed, rPatterns)
+
+	// Check for R comments
+	hasRComments := false
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") && !strings.HasPrefix(strings.TrimSpace(line), "#!") {
+			hasRComments = true
+
+			break
+		}
+	}
+
+	// Check for typical R patterns
+	hasAssignment := strings.Contains(trimmed, "<-") || strings.Contains(trimmed, "=")
+	hasFunctionCall := strings.Contains(trimmed, "(") && strings.Contains(trimmed, ")")
+
+	return rScore >= 2 || (hasAssignment && hasFunctionCall && hasRComments)
+}
+
+// isRMarkdown checks if the content appears to be R Markdown format.
+// It looks for YAML frontmatter or R code chunks.
+func isRMarkdown(trimmed string, lines []string) bool {
+	if len(lines) < 2 {
+		return false
+	}
+
+	// Check for YAML frontmatter
+	hasYAMLHeader := strings.TrimSpace(lines[0]) == yamlDelimiter
+
+	// Check for R code chunks
+	hasRChunk := strings.Contains(trimmed, "```{r") || strings.Contains(trimmed, "```{R") ||
+		strings.Contains(trimmed, "```{r,") || strings.Contains(trimmed, "```{R,")
+
+	// Check for inline R code
+	hasInlineR := strings.Contains(trimmed, "`r ") && strings.Contains(trimmed, "`")
+
+	// It's R Markdown if it has YAML header or R chunks
+	return hasYAMLHeader && (hasRChunk || hasInlineR || detectMarkdown(trimmed, lines)) ||
+		hasRChunk || (hasInlineR && detectMarkdown(trimmed, lines))
+}
+
 // detectDeveloperFormats attempts to detect developer tool formats.
 // It checks for Dockerfile, HCL, GraphQL, and Protobuf formats in order of specificity.
 // Returns FormatUnknown if no developer format is detected.
@@ -1077,6 +1337,16 @@ func detectDeveloperFormats(trimmed string, lines []string) Format {
 	// Check for Protobuf text format before YAML (more specific)
 	if isProtobuf(trimmed) {
 		return FormatProtobuf
+	}
+
+	// Check R Markdown first (more specific than R)
+	if isRMarkdown(trimmed, lines) {
+		return FormatRMarkdown
+	}
+
+	// Check R code
+	if isRCode(trimmed, lines) {
+		return FormatR
 	}
 
 	return FormatUnknown
@@ -1330,6 +1600,10 @@ var extensionMap = map[string]Format{
 	"ipynb":         FormatJupyter,
 	"dockerfile":    FormatDockerfile,
 	"containerfile": FormatDockerfile,
+	"r":             FormatR,
+	"R":             FormatR,
+	"rmd":           FormatRMarkdown,
+	"Rmd":           FormatRMarkdown,
 }
 
 // DetectFormatFromFilename attempts to detect format from filename extension.
